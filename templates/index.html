@@ -75,7 +75,9 @@
 
         /* --- RIGHT PANEL (MAP) --- */
         .map-panel { flex: 1; background: #e0e0e0; border-radius: 12px; overflow: hidden; position: relative; min-height: 400px; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        #map { width: 100%; height: 100%; z-index: 1; }
+        
+        /* Added cursor: crosshair so users know they can click the map */
+        #map { width: 100%; height: 100%; z-index: 1; cursor: crosshair; }
 
         /* --- FOOTER --- */
         footer { background-color: #1b5e20; color: white; text-align: center; padding: 10px; font-size: 0.8rem; }
@@ -229,6 +231,26 @@
         L.control.zoom({ position: 'topright' }).addTo(map);
         L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(map);
 
+        // --- NEW: INTERACTIVE MAP CLICK FEATURE ---
+        map.on('click', function(e) {
+            // 1. Get the clicked coordinates
+            var clickedLat = e.latlng.lat.toFixed(7);
+            var clickedLon = e.latlng.lng.toFixed(7);
+
+            // 2. Move the marker to the clicked spot
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([clickedLat, clickedLon]).addTo(map)
+                .bindPopup("<b>Selected Location</b><br>Lat: " + clickedLat + "<br>Lon: " + clickedLon)
+                .openPopup();
+
+            // 3. Inject the coordinates into the WGS84 input boxes
+            document.getElementById('wgs_lat').value = clickedLat;
+            document.getElementById('wgs_lon').value = clickedLon;
+
+            // 4. Force the UI to switch to the WGS84 card so the user sees the filled data
+            switchCard('card-wgs-to-minna');
+        });
+
         // --- COPY TO CLIPBOARD LOGIC ---
         function copyText(elementId, btnElement) {
             var textToCopy = document.getElementById(elementId).innerText;
@@ -329,4 +351,3 @@
     </script>
 </body>
 </html>
-
