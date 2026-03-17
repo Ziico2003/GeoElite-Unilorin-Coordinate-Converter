@@ -1,16 +1,16 @@
 from pyproj import Transformer, CRS
 import re
 
-# Define CRS Definitions
+# --- BUG 1 FIX: Explicitly add the 3-Parameter Datum Shift for Nigeria ---
+# Instead of CRS.from_epsg(4263) which often fails to shift, we use the PROJ string
 crs_wgs84 = CRS.from_epsg(4326)
-crs_minna = CRS.from_epsg(4263)
+crs_minna = CRS.from_string("+proj=longlat +ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +no_defs")
 
 # --- 1. SMART INPUT PARSER ---
 def parse_dms(value):
     """Extracts numbers from any format (decimal or DMS) and converts to decimal degrees."""
     if not value: return 0.0
     
-    # re.findall automatically strips out °, ', " and grabs ONLY the numbers
     parts = re.findall(r'-?\d+\.?\d*', str(value))
     
     if not parts:
@@ -24,7 +24,7 @@ def parse_dms(value):
             m = float(parts[1])
             s = float(parts[2]) if len(parts) >= 3 else 0.0
             
-            # Safely handle negative coordinates (e.g., -0° 30' 00")
+            # Safely handle negative coordinates
             sign = -1 if d < 0 or str(value).strip().startswith('-') else 1
             return sign * (abs(d) + (m / 60.0) + (s / 3600.0))
     except ValueError:
@@ -75,16 +75,21 @@ def minna_to_utm(lat, lon):
     elif lon <= 12: zone = 32
     else: zone = 33
     
-    # CRITICAL FIX: Minna UTM EPSG codes are 26391, 26392, 26393
-    epsg = 26360 + zone 
-    transformer = Transformer.from_crs(crs_minna, CRS.from_epsg(epsg), always_xy=True)
+    # --- BUG 2 FIX: Ensure exact UTM projections with Datum Shift ---
+    epsg_code = 26300 + zone
+    proj_str = f"+proj=utm +zone={zone} +ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs"
+    crs_minna_utm = CRS.from_string(proj_str)
+    
+    transformer = Transformer.from_crs(crs_minna, crs_minna_utm, always_xy=True)
     easting, northing = transformer.transform(lon, lat)
-    return zone, easting, northing, epsg
+    return zone, easting, northing, epsg_code
 
 def utm_to_wgs84(easting, northing, zone):
-    # Takes Minna UTM -> WGS84 Lat/Lon using the corrected EPSG formula
-    epsg = 26360 + int(zone)
-    transformer = Transformer.from_crs(CRS.from_epsg(epsg), crs_wgs84, always_xy=True)
+    # Use explicit string to ensure it successfully shifts back to WGS84
+    proj_str = f"+proj=utm +zone={zone} +ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs"
+    crs_minna_utm = CRS.from_string(proj_str)
+    
+    transformer = Transformer.from_crs(crs_minna_utm, crs_wgs84, always_xy=True)
     lon, lat = transformer.transform(easting, northing)
     return lat, lon
 
@@ -92,7 +97,7 @@ def wgs84_to_utm_wgs84(lat, lon):
     # Takes WGS84 Lat/Lon -> WGS84 UTM (Zone 31/32/33N)
     zone = int((lon + 180) / 6) + 1
     
-    # EPSG for WGS84 UTM North is 326xx (This was correct in your original code)
+    # EPSG for WGS84 UTM North is 326xx
     epsg = 32600 + zone
     
     transformer = Transformer.from_crs(crs_wgs84, CRS.from_epsg(epsg), always_xy=True)
