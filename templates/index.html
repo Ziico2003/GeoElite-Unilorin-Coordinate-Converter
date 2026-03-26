@@ -4,7 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GeoElite Unilorin Coordinate Converter</title>
-<meta name="google-site-verification" content="1_N7HDZPzZwLPei0Mem37wbxlx8KSv5kZnN7mEuN5Mg" />
+    
+    <meta name="google-site-verification" content="1_N7HDZPzZwLPei0Mem37wbxlx8KSv5kZnN7mEuN5Mg" />
+
+    <meta name="description" content="GeoElite Unilorin Coordinate Converter. A high-precision geodetic web tool for transforming WGS84 and Minna Datum coordinates for the Nigerian Geodetic Network.">
+    <meta name="keywords" content="Coordinate Converter, Minna Datum, WGS84, UTM Zone 31, UTM Zone 32, Nigerian Geodetic Network, Surveying, Geoinformatics, Unilorin, AD Consultancy">
+    <meta name="author" content="Department of Surveying and Geoinformatics, University of Ilorin">
+
+    <meta property="og:site_name" content="GeoElite Unilorin" />
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "GeoElite Unilorin",
+      "url": "https://geoelite-unilorin-coordinate-converter.vercel.app/"
+    }
+    </script>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
     <style>
@@ -76,7 +93,7 @@
         /* --- RIGHT PANEL (MAP) --- */
         .map-panel { flex: 1; background: #e0e0e0; border-radius: 12px; overflow: hidden; position: relative; min-height: 400px; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         
-        /* Added cursor: crosshair so users know they can click the map */
+        /* Cursor crosshair */
         #map { width: 100%; height: 100%; z-index: 1; cursor: crosshair; }
 
         /* --- FOOTER --- */
@@ -206,16 +223,12 @@
         function closeMenu() { document.getElementById("mySideMenu").style.width = "0"; }
 
         function switchCard(cardId) {
-            // Hide all cards
             document.getElementById('card-wgs-to-minna').style.display = 'none';
             document.getElementById('card-minna-to-wgs').style.display = 'none';
             document.getElementById('card-utm-converter').style.display = 'none';
             document.getElementById('card-about').style.display = 'none';
             
-            // Show the selected card
             document.getElementById(cardId).style.display = 'block';
-            
-            // Close the menu
             closeMenu();
         }
 
@@ -224,30 +237,36 @@
         var marker;
         var accuracyCircle;
 
-        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-        var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' });
+        // NEW: Added maxNativeZoom to stop the "Map not available" error when zooming deeply
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            maxNativeZoom: 19, 
+            maxZoom: 22, 
+            attribution: '© OpenStreetMap' 
+        }).addTo(map);
+        
+        var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+            maxNativeZoom: 17, 
+            maxZoom: 22, 
+            attribution: 'Tiles © Esri' 
+        });
+        
         L.control.layers({ "Street Map": osm, "Satellite": sat }).addTo(map);
 
         L.control.zoom({ position: 'topright' }).addTo(map);
         L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(map);
 
-        // --- NEW: INTERACTIVE MAP CLICK FEATURE ---
+        // --- INTERACTIVE MAP CLICK FEATURE ---
         map.on('click', function(e) {
-            // 1. Get the clicked coordinates
             var clickedLat = e.latlng.lat.toFixed(7);
             var clickedLon = e.latlng.lng.toFixed(7);
 
-            // 2. Move the marker to the clicked spot
             if (marker) map.removeLayer(marker);
             marker = L.marker([clickedLat, clickedLon]).addTo(map)
                 .bindPopup("<b>Selected Location</b><br>Lat: " + clickedLat + "<br>Lon: " + clickedLon)
                 .openPopup();
 
-            // 3. Inject the coordinates into the WGS84 input boxes
             document.getElementById('wgs_lat').value = clickedLat;
             document.getElementById('wgs_lon').value = clickedLon;
-
-            // 4. Force the UI to switch to the WGS84 card so the user sees the filled data
             switchCard('card-wgs-to-minna');
         });
 
