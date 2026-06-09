@@ -63,8 +63,8 @@
         .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 4px solid #66bb6a; }
         .card h3 { margin-top: 0; font-size: 1.1rem; color: #2e7d32; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; margin-bottom: 15px; }
 
-        /* Hide all but the first card by default */
-        #card-minna-to-wgs, #card-utm-converter, #card-about { display: none; }
+        /* Hide all but the first card by default (ADDED THE NEW CARD HERE) */
+        #card-minna-to-wgs, #card-utm-converter, #card-wgs-utm-to-minna, #card-about { display: none; }
 
         /* --- INPUTS & BUTTONS --- */
         .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -119,6 +119,7 @@
         <a href="#" onclick="switchCard('card-wgs-to-minna')">WGS84 &rarr; Minna / UTM</a>
         <a href="#" onclick="switchCard('card-minna-to-wgs')">Minna (Geog) &rarr; WGS84 / UTM</a>
         <a href="#" onclick="switchCard('card-utm-converter')">Minna (UTM) &rarr; WGS84</a>
+        <a href="#" onclick="switchCard('card-wgs-utm-to-minna')">WGS84 (UTM) &rarr; Minna (UTM)</a>
         <a href="#" onclick="switchCard('card-about')">About This Project</a>
     </div>
 
@@ -192,6 +193,33 @@
                 <div id="res_utm" class="result-box"></div>
             </div>
 
+            <div id="card-wgs-utm-to-minna" class="card">
+                <h3>WGS84 (UTM) &rarr; Minna (UTM)</h3>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Easting (WGS84 m)</label>
+                        <input type="text" id="wgs_u_e" placeholder="e.g. 500000">
+                    </div>
+                    <div class="input-group">
+                        <label>Northing (WGS84 m)</label>
+                        <input type="text" id="wgs_u_n" placeholder="e.g. 900000">
+                    </div>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Zone (Required)</label>
+                        <select id="wgs_u_z">
+                            <option value="" selected disabled>-- Select Zone --</option>
+                            <option value="31">Zone 31</option>
+                            <option value="32">Zone 32</option>
+                            <option value="33">Zone 33</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="convert('wgs_utm_to_minna')">Convert to Minna UTM</button>
+                <div id="res_wgs_utm_minna" class="result-box"></div>
+            </div>
+
             <div id="card-about" class="card">
                 <h3>About GeoElite Unilorin Coordinate Converter</h3>
                 <div class="about-text">
@@ -201,6 +229,7 @@
                         <li>WGS84 (Geographic) to Minna Datum transformations.</li>
                         <li>Minna Datum to WGS84 transformations.</li>
                         <li>Projected UTM Zone (31, 32, 33) conversions to geographic coordinates.</li>
+                        <li>Direct WGS84 UTM to Minna UTM transformations.</li>
                     </ul>
                     <p>It leverages a Python-based backend for complex geodetic math and Leaflet.js for interactive spatial mapping, providing high-precision coordinate transformations tailored for the Nigerian Geodetic Network.</p>
                 </div>
@@ -226,6 +255,7 @@
             document.getElementById('card-wgs-to-minna').style.display = 'none';
             document.getElementById('card-minna-to-wgs').style.display = 'none';
             document.getElementById('card-utm-converter').style.display = 'none';
+            document.getElementById('card-wgs-utm-to-minna').style.display = 'none'; // ADDED NEW CARD
             document.getElementById('card-about').style.display = 'none';
             
             document.getElementById(cardId).style.display = 'block';
@@ -237,7 +267,7 @@
         var marker;
         var accuracyCircle;
 
-        // NEW: Added maxNativeZoom to stop the "Map not available" error when zooming deeply
+        // Added maxNativeZoom to stop the "Map not available" error when zooming deeply
         var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
             maxNativeZoom: 19, 
             maxZoom: 22, 
@@ -334,6 +364,11 @@
                 data.northing = document.getElementById('utm_n').value;
                 data.zone = document.getElementById('utm_z').value;
                 if (!data.zone) return alert("⚠️ Please select a UTM Zone!");
+            } else if (type === 'wgs_utm_to_minna') { // NEW DATA CAPTURE
+                data.easting = document.getElementById('wgs_u_e').value;
+                data.northing = document.getElementById('wgs_u_n').value;
+                data.zone = document.getElementById('wgs_u_z').value;
+                if (!data.zone) return alert("⚠️ Please select a UTM Zone!");
             }
 
             fetch('/convert', {
@@ -363,6 +398,13 @@
                         <b>WGS84 (UTM Zone ${res.wgs_utm_zone}):</b><br>E: ${res.wgs_utm_e}m<br>N: ${res.wgs_utm_n}m
                     `);
                     updateMap(res.lat, res.lon, "Converted WGS84");
+                } else if (type === 'wgs_utm_to_minna') { // NEW OUTPUT HANDLER
+                    showResult('res_wgs_utm_minna', `
+                        <b>Minna UTM (Zone ${res.zone}):</b><br>
+                        Easting: ${res.minna_e}m<br>
+                        Northing: ${res.minna_n}m
+                    `);
+                    updateMap(res.lat, res.lon, "Input WGS84 UTM Location");
                 }
             })
             .catch(err => console.error(err));
