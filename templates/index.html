@@ -63,7 +63,7 @@
         .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 4px solid #66bb6a; }
         .card h3 { margin-top: 0; font-size: 1.1rem; color: #2e7d32; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; margin-bottom: 15px; }
 
-        /* Hide all but the first card by default (ADDED THE NEW CARD HERE) */
+        /* Hide all but the first card by default */
         #card-minna-to-wgs, #card-utm-converter, #card-wgs-utm-to-minna, #card-about { display: none; }
 
         /* --- INPUTS & BUTTONS --- */
@@ -129,7 +129,7 @@
 
             <div id="card-wgs-to-minna" class="card">
                 <h3>WGS84 &rarr; Minna / UTM</h3>
-                <button onclick="locateMe()" class="locate-btn">📍 Use My GPS Location</button>
+                <button onclick="locateMe('wgs', this)" class="locate-btn">📍 Use My GPS Location</button>
                 <div class="input-row">
                     <div class="input-group">
                         <label>Latitude (Dec or DMS)</label>
@@ -149,6 +149,7 @@
 
             <div id="card-minna-to-wgs" class="card">
                 <h3>Minna (Geographic) &rarr; WGS84 / UTM</h3>
+                <button onclick="locateMe('minna', this)" class="locate-btn">📍 Use My GPS Location</button>
                 <div class="input-row">
                     <div class="input-group">
                         <label>Latitude (Minna)</label>
@@ -168,6 +169,7 @@
 
             <div id="card-utm-converter" class="card">
                 <h3>Minna (UTM) &rarr; WGS84 / WGS UTM</h3>
+                <button onclick="locateMe('minna_utm', this)" class="locate-btn">📍 Use My GPS Location</button>
                 <div class="input-row">
                     <div class="input-group">
                         <label>Easting (m)</label>
@@ -195,6 +197,7 @@
 
             <div id="card-wgs-utm-to-minna" class="card">
                 <h3>WGS84 (UTM) &rarr; Minna (UTM)</h3>
+                <button onclick="locateMe('wgs_utm', this)" class="locate-btn">📍 Use My GPS Location</button>
                 <div class="input-row">
                     <div class="input-group">
                         <label>Easting (WGS84 m)</label>
@@ -255,7 +258,7 @@
             document.getElementById('card-wgs-to-minna').style.display = 'none';
             document.getElementById('card-minna-to-wgs').style.display = 'none';
             document.getElementById('card-utm-converter').style.display = 'none';
-            document.getElementById('card-wgs-utm-to-minna').style.display = 'none'; // ADDED NEW CARD
+            document.getElementById('card-wgs-utm-to-minna').style.display = 'none';
             document.getElementById('card-about').style.display = 'none';
             
             document.getElementById(cardId).style.display = 'block';
@@ -330,23 +333,67 @@
             map.flyTo([lat, lon], 17, { animate: true, duration: 1.5 });
         }
 
-        // --- GPS LOGIC ---
-        function locateMe() {
+        // --- ADVANCED SMART GPS LOGIC ---
+        function locateMe(targetCard, btnElement) {
             if (!navigator.geolocation) return alert("Geolocation not supported.");
+            
+            // Visual feedback for the user
+            var originalText = btnElement.innerHTML;
+            btnElement.innerHTML = "⏳ Acquiring Satellites...";
+
             navigator.geolocation.getCurrentPosition((pos) => {
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
                 const acc = pos.coords.accuracy;
 
-                document.getElementById('wgs_lat').value = lat.toFixed(7);
-                document.getElementById('wgs_lon').value = lon.toFixed(7);
-
+                // Update the map to show where they are standing
                 updateMap(lat, lon, `<b>Your GPS Location</b><br>Accuracy: ±${Math.round(acc)}m`);
-
                 if (accuracyCircle) map.removeLayer(accuracyCircle);
                 accuracyCircle = L.circle([lat, lon], { color: '#136AEC', fillColor: '#136AEC', fillOpacity: 0.15, radius: acc }).addTo(map);
                 map.fitBounds(accuracyCircle.getBounds());
-            }, (err) => { alert("GPS Error: " + err.message); }, { enableHighAccuracy: true });
+
+                // SMART ROUTING: Fill the boxes based on which tab they are currently on
+                if (targetCard === 'wgs') {
+                    document.getElementById('wgs_lat').value = lat.toFixed(7);
+                    document.getElementById('wgs_lon').value = lon.toFixed(7);
+                    btnElement.innerHTML = originalText;
+                } 
+                else if (targetCard === 'minna') {
+                    // Secretly convert WGS84 GPS to Minna before filling the boxes
+                    fetch('/convert', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'wgs_to_minna', lat: lat, lon: lon })
+                    }).then(res => res.json()).then(data => {
+                        document.getElementById('minna_lat').value = data.lat;
+                        document.getElementById('minna_lon').value = data.lon;
+                        btnElement.innerHTML = originalText;
+                    });
+                } 
+                else if (targetCard === 'minna_utm') {
+                    // Secretly convert WGS84 GPS to Minna UTM before filling the boxes
+                    fetch('/convert', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'wgs_to_utm', lat: lat, lon: lon })
+                    }).then(res => res.json()).then(data => {
+                        document.getElementById('utm_e').value = data.easting;
+                        document.getElementById('utm_n').value = data.northing;
+                        document.getElementById('utm_z').value = data.zone;
+                        btnElement.innerHTML = originalText;
+                    });
+                }
+                else if (targetCard === 'wgs_utm') {
+                    // WGS UTM requires complex reverse engineering. Safest UX is to route to standard WGS84
+                    document.getElementById('wgs_lat').value = lat.toFixed(7);
+                    document.getElementById('wgs_lon').value = lon.toFixed(7);
+                    switchCard('card-wgs-to-minna');
+                    btnElement.innerHTML = originalText;
+                }
+            }, (err) => { 
+                alert("GPS Error: " + err.message); 
+                btnElement.innerHTML = originalText;
+            }, { enableHighAccuracy: true });
         }
 
         // --- API CONVERSION LOGIC ---
@@ -364,7 +411,7 @@
                 data.northing = document.getElementById('utm_n').value;
                 data.zone = document.getElementById('utm_z').value;
                 if (!data.zone) return alert("⚠️ Please select a UTM Zone!");
-            } else if (type === 'wgs_utm_to_minna') { // NEW DATA CAPTURE
+            } else if (type === 'wgs_utm_to_minna') {
                 data.easting = document.getElementById('wgs_u_e').value;
                 data.northing = document.getElementById('wgs_u_n').value;
                 data.zone = document.getElementById('wgs_u_z').value;
@@ -398,7 +445,7 @@
                         <b>WGS84 (UTM Zone ${res.wgs_utm_zone}):</b><br>E: ${res.wgs_utm_e}m<br>N: ${res.wgs_utm_n}m
                     `);
                     updateMap(res.lat, res.lon, "Converted WGS84");
-                } else if (type === 'wgs_utm_to_minna') { // NEW OUTPUT HANDLER
+                } else if (type === 'wgs_utm_to_minna') {
                     showResult('res_wgs_utm_minna', `
                         <b>Minna UTM (Zone ${res.zone}):</b><br>
                         Easting: ${res.minna_e}m<br>
