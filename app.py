@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from converters import wgs84_to_minna, minna_to_wgs84, minna_to_utm, utm_to_wgs84, to_dms, parse_dms, wgs84_to_utm_wgs84
+from converters import wgs84_to_minna, minna_to_wgs84, minna_to_utm, utm_to_wgs84, to_dms, parse_dms, wgs84_to_utm_wgs84, wgs84_utm_to_minna_utm
 
 app = Flask(__name__)
 
@@ -82,6 +82,24 @@ def convert():
                 "wgs_utm_zone": w_zone,
                 "wgs_utm_e": round(w_e, 3),
                 "wgs_utm_n": round(w_n, 3)
+            })
+
+        # 6. NEW: WGS84 (UTM) -> Minna (UTM)
+        elif conv_type == "wgs_utm_to_minna":
+            e = float(data["easting"])
+            n = float(data["northing"])
+            zone = int(data["zone"])
+            
+            # Get Map coordinates (wgs_lat/lon) and final Minna UTM coordinates
+            wgs_lat, wgs_lon, m_e, m_n = wgs84_utm_to_minna_utm(e, n, zone)
+            
+            return jsonify({
+                "success": True,
+                "lat": round(wgs_lat, 6), # Required to plot the pin on the map
+                "lon": round(wgs_lon, 6), # Required to plot the pin on the map
+                "zone": zone,
+                "minna_e": round(m_e, 3),
+                "minna_n": round(m_n, 3)
             })
 
         return jsonify({"success": False, "error": "Unknown Type"})
