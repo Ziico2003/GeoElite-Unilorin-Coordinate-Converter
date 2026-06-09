@@ -103,3 +103,19 @@ def wgs84_to_utm_wgs84(lat, lon):
     transformer = Transformer.from_crs(crs_wgs84, CRS.from_epsg(epsg), always_xy=True)
     e, n = transformer.transform(lon, lat)
     return zone, e, n
+
+# --- NEW: WGS84 UTM to MINNA UTM ---
+def wgs84_utm_to_minna_utm(easting, northing, zone):
+    # 1. First convert WGS84 UTM -> WGS84 Lat/Lon (Need this for Leaflet Map!)
+    epsg_wgs84_utm = 32600 + int(zone)
+    transformer_to_wgs = Transformer.from_crs(CRS.from_epsg(epsg_wgs84_utm), crs_wgs84, always_xy=True)
+    wgs_lon, wgs_lat = transformer_to_wgs.transform(easting, northing)
+    
+    # 2. Convert that WGS84 Lat/Lon -> Minna UTM using the 3-parameter shift
+    proj_str = f"+proj=utm +zone={zone} +ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs"
+    crs_minna_utm = CRS.from_string(proj_str)
+    
+    transformer_to_minna_utm = Transformer.from_crs(crs_wgs84, crs_minna_utm, always_xy=True)
+    m_easting, m_northing = transformer_to_minna_utm.transform(wgs_lon, wgs_lat)
+    
+    return wgs_lat, wgs_lon, m_easting, m_northing
